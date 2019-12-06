@@ -142,23 +142,21 @@ bool handle_page_fault(enum memory_access_type rw, unsigned int vpn)
  */
 void switch_process(unsigned int pid)
 {
-	int temp;
-	int count = 0;
+	struct process *dot;
 	struct process *next = NULL, *target;
 	if (!list_empty(&processes)) {
-		//printCurrentProcesses();
-		temp = list_first_entry(&processes, struct process, list)->pid;
+		dot = list_first_entry(&processes, struct process, list);
 		
 		do {
+			list_rotate_left(&processes);
 			target = list_first_entry(&processes, struct process, list);
 			if (target->pid == pid) {
 				printf("detected : target->pid : %d , pid : %d\n", target->pid, pid);
 				next = target;
 				break;
 			}
-			list_rotate_left(&processes);
-			count++;
-		} while (count<MAX_PROCESS);
+			//printf("dot->pid : %d, target->pid : %d\n", dot->pid, target->pid);
+		} while (dot->pid != target->pid);
 	}
 
 	if (next != NULL) {
