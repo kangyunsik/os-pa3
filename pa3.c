@@ -63,9 +63,16 @@ extern unsigned int alloc_page(void);
  */
 bool translate(enum memory_access_type rw, unsigned int vpn, unsigned int *pfn)
 {
-	/*** DO NOT MODIFY THE PAGE TABLE IN THIS FUNCTION ***/
+	struct pte_directory *pte_d = current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE];
+	if (!pte_d || pte_d->ptes[vpn%NR_PTES_PER_PAGE].valid == false) {
+		return false;
+	}
+	else {
+		*pfn = pte_d->ptes[vpn % NR_PTES_PER_PAGE].pfn;
+		return true;
+	}
 
-	return false;
+	/*** DO NOT MODIFY THE PAGE TABLE IN THIS FUNCTION ***/
 }
 
 
@@ -88,6 +95,37 @@ bool translate(enum memory_access_type rw, unsigned int vpn, unsigned int *pfn)
  */
 bool handle_page_fault(enum memory_access_type rw, unsigned int vpn)
 {
+	struct pte_directory *p = current->pagetable.outer_ptes[vpn/NR_PTES_PER_PAGE];
+
+	if (!p) {
+		//printf("is !p\n");
+		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE] = (struct pte_directory*)malloc(sizeof(struct pte_directory));
+
+		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].pfn = alloc_page();
+		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].valid = true;
+		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].writable = true;
+		return true;
+	}
+	else if (p->ptes[vpn%NR_PTES_PER_PAGE].valid == false) {		// p는 있지만, %16에 해당하는 pte가 없을때.
+		p->ptes[vpn % NR_PTES_PER_PAGE].pfn = alloc_page();
+		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].valid = true;
+		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].writable = true;
+		return true;
+	}
+
+	/*
+	if (p->ptes[vpn % 16].valid == false) {
+		printf("a\n");
+		p->ptes[vpn / 16].valid = true;
+		p->ptes[vpn/16].writable = true;
+	}
+
+	if (p->ptes[vpn / 16].writable == false && rw == true) {	// writable == false / 읽으려고 함
+		
+	}
+
+	printf("\ncalled hpf, vpn : %d, rw : %d\n",vpn,rw);
+	*/
 	return true;
 }
 
