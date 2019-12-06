@@ -21,6 +21,8 @@
 #include "list_head.h"
 #include "vm.h"
 
+#define MAX_PROCESS 100
+
 /**
  * Ready queue of the system
  */
@@ -64,7 +66,8 @@ extern unsigned int alloc_page(void);
 bool translate(enum memory_access_type rw, unsigned int vpn, unsigned int *pfn)
 {
 	struct pte_directory *pte_d = current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE];
-	if (!pte_d || pte_d->ptes[vpn%NR_PTES_PER_PAGE].valid == false) {
+	if (!pte_d || pte_d->ptes[vpn%NR_PTES_PER_PAGE].valid == false ||
+		(rw && !current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].writable)) {
 		return false;
 	}
 	else {
@@ -97,7 +100,6 @@ bool handle_page_fault(enum memory_access_type rw, unsigned int vpn)
 {
 	struct pte_directory *p = current->pagetable.outer_ptes[vpn/NR_PTES_PER_PAGE];
 	if (!p) {
-		//printf("is !p\n");
 		p = (struct pte_directory*)malloc(sizeof(struct pte_directory));
 		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE] = p;
 
@@ -113,19 +115,13 @@ bool handle_page_fault(enum memory_access_type rw, unsigned int vpn)
 		return true;
 	}
 
-	/*
-	if (p->ptes[vpn % 16].valid == false) {
-		printf("a\n");
-		p->ptes[vpn / 16].valid = true;
-		p->ptes[vpn/16].writable = true;
-	}
 
-	if (p->ptes[vpn / 16].writable == false && rw == true) {	// writable == false / 읽으려고 함
-		
+	if (p->ptes[vpn % 16].writable == false && rw == true) {	// writable == false / 읽으려고 함
+		//printf("wrt falut!\n");
+		p->ptes[vpn%NR_PTES_PER_PAGE].pfn = alloc_page();
+		p->ptes[vpn%NR_PTES_PER_PAGE].writable = true;
 	}
-
-	printf("\ncalled hpf, vpn : %d, rw : %d\n",vpn,rw);
-	*/
+	
 	return true;
 }
 
@@ -146,5 +142,51 @@ bool handle_page_fault(enum memory_access_type rw, unsigned int vpn)
  */
 void switch_process(unsigned int pid)
 {
+	int temp;
+	int count = 0;
+	struct process *next = NULL, *target;
+	if (!list_empty(&processes)) {
+		//printCurrentProcesses();
+		temp = list_first_entry(&processes, struct process, list)->pid;
+		
+		do {
+			target = list_first_entry(&processes, struct process, list);
+			if (target->pid == pid) {
+				printf("detected : target->pid : %d , pid : %d\n", target->pid, pid);
+				next = target;
+				break;
+			}
+			list_rotate_left(&processes);
+			count++;
+		} while (count<MAX_PROCESS);
+	}
+
+	if (next != NULL) {
+		list_add_tail(&current->list, &processes);
+		current = next;
+	}
+	else {	// fork
+		next = (struct process*)malloc(sizeof(struct process));
+		// current의 pagetable 모두 writeable 끄기. , pagetable 복제
+		for (int i = 0; i < NR_PTES_PER_PAGE; i++) {
+			if (current->pagetable.outer_ptes[i]) {
+				next->pagetable.outer_ptes[i] = (struct pte_directory*)malloc(sizeof(struct pte_directory));
+				for (int j = 0; j < NR_PTES_PER_PAGE; j++) {
+					if (current->pagetable.outer_ptes[i]->ptes[j].valid) {
+						current->pagetable.outer_ptes[i]->ptes[j].writable = 0;
+						next->pagetable.outer_ptes[i]->ptes[j].pfn = current->pagetable.outer_ptes[i]->ptes[j].pfn;
+						next->pagetable.outer_ptes[i]->ptes[j].valid = 1;
+						next->pagetable.outer_ptes[i]->ptes[j].writable = 0;
+					
+					}
+				}
+			}
+		}
+		next->pid = pid;
+		list_add_tail(&current->list, &processes);
+
+		current = next;
+	}
+
 }
 
