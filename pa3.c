@@ -96,20 +96,20 @@ bool translate(enum memory_access_type rw, unsigned int vpn, unsigned int *pfn)
 bool handle_page_fault(enum memory_access_type rw, unsigned int vpn)
 {
 	struct pte_directory *p = current->pagetable.outer_ptes[vpn/NR_PTES_PER_PAGE];
-
 	if (!p) {
 		//printf("is !p\n");
-		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE] = (struct pte_directory*)malloc(sizeof(struct pte_directory));
+		p = (struct pte_directory*)malloc(sizeof(struct pte_directory));
+		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE] = p;
 
-		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].pfn = alloc_page();
-		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].valid = true;
-		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].writable = true;
+		p->ptes[vpn % NR_PTES_PER_PAGE].pfn = alloc_page();
+		p->ptes[vpn % NR_PTES_PER_PAGE].valid = true;
+		p->ptes[vpn % NR_PTES_PER_PAGE].writable = true;
 		return true;
 	}
 	else if (p->ptes[vpn%NR_PTES_PER_PAGE].valid == false) {		// p는 있지만, %16에 해당하는 pte가 없을때.
 		p->ptes[vpn % NR_PTES_PER_PAGE].pfn = alloc_page();
-		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].valid = true;
-		current->pagetable.outer_ptes[vpn / NR_PTES_PER_PAGE]->ptes[vpn % NR_PTES_PER_PAGE].writable = true;
+		p->ptes[vpn % NR_PTES_PER_PAGE].valid = true;
+		p->ptes[vpn % NR_PTES_PER_PAGE].writable = true;
 		return true;
 	}
 
